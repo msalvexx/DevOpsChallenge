@@ -1,0 +1,58 @@
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - '*'
+ 
+env:
+  AZURE_WEBAPP_NAME: mycdapp 
+
+jobs:
+  build:
+    name: Faz o build da aplicação
+    runs-on: windows-latest
+ 
+    steps:
+    - uses: actions/checkout@v1
+      name: Checkout
+
+    - name: Configura NuGet
+      uses: NuGet/setup-nuget@v1.0.2
+
+    - name: Adiciona msbuild
+      uses: microsoft/setup-msbuild@v1.0.0
+
+    - name: Recupera os pacotes NuGet
+      run: nuget restore Nibo.DevOpsChallenge.sln
+ 
+    - name: Faz o Build e Publish da aplicação
+      run: msbuild Nibo.DevOpsChallenge.sln /p:Configuration=Release /p:DeployOnBuild=true /p:PublishProfile=FolderProfile
+
+    - name: Faz Upload do Artefato
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        name: release
+        path: Nibo.DevOpsChallenge\obj\Release
+
+  deploy:
+    needs: build
+    name: Deploy para o Azure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v2
+        name: Faz o download do artefato de build
+        with:
+          name: release
+          path: release
+
+      - name: Log Artefatos
+        run: ls -R
+
+      - uses: azure/webapps-deploy@v2
+        name: Deploy do WebApp
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE  }}
+          package: ./release
